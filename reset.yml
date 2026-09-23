@@ -1,0 +1,29 @@
+---
+- name: Resetear el clúster
+  hosts: k8s
+  tasks:
+    - name: Desinstalar Cilium
+      ansible.builtin.command: /usr/local/bin/cilium uninstall
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      when: "'masters' in group_names"
+      failed_when: false
+      changed_when: true
+
+    - name: kubeadm reset
+      ansible.builtin.command: kubeadm reset -f
+      changed_when: true
+
+    - name: Borrar CNI y kubeconfig
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/cni/net.d
+        - "/home/{{ ansible_user }}/.kube"
+
+    - name: Quitar interfaces de Cilium
+      ansible.builtin.command: ip link delete {{ item }}
+      loop: [cilium_host, cilium_net, cilium_vxlan]
+      failed_when: false
+      changed_when: false

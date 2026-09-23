@@ -1,0 +1,9 @@
+---
+ansible_user: ansible
+
+k8s_minor: "v1.36"
+control_plane_endpoint: k8s.master01
+pod_cidr: "10.244.0.0/16"      # asignado por kubeadm, Cilium lo usa vía ipam.mode=kubernetes
+service_cidr: "10.96.0.0/12"
+
+cilium_cli_arch: amd64

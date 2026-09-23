@@ -1,0 +1,11 @@
+---
+fw_ports:
+  - 6443/tcp          # API server
+  - 2379-2380/tcp     # etcd
+  - 10250/tcp         # kubelet
+  - 10257/tcp         # controller manager
+  - 10259/tcp         # scheduler
+  - 8472/udp          # VXLAN de Cilium
+  - 4240/tcp          # Cilium health checks entre nodos
+  - 4244/tcp          # Hubble server (agente <- Hubble Relay, entre nodos)
+  - 30000-32767/tcp   # NodePort (dashboards: Falcosidekick UI, Hubble UI, etc.)

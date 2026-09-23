@@ -1,0 +1,84 @@
+---
+- name: Preparar nodos Rocky Linux 9
+  hosts: k8s
+  tasks:
+    - name: Definir hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Registrar nodos en /etc/hosts
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '\s{{ item }}$'
+        line: "{{ hostvars[item].ansible_host }} {{ item }}"
+      loop: "{{ groups['k8s'] }}"
+
+    - name: Apagar swap
+      ansible.builtin.command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+
+    - name: Comentar swap en /etc/fstab
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^([^#].*\sswap\s.*)$'
+        replace: '# \1'
+
+    - name: SELinux en permissive
+      ansible.posix.selinux:
+        policy: targeted
+        state: permissive
+
+    - name: Módulos del kernel persistentes
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+        mode: "0644"
+
+    - name: Cargar módulos
+      community.general.modprobe:
+        name: "{{ item }}"
+        state: present
+      loop: [overlay, br_netfilter]
+
+    - name: Parámetros sysctl
+      ansible.posix.sysctl:
+        name: "{{ item }}"
+        value: "1"
+        sysctl_file: /etc/sysctl.d/k8s.conf
+        reload: true
+      loop:
+        - net.bridge.bridge-nf-call-iptables
+        - net.bridge.bridge-nf-call-ip6tables
+        - net.ipv4.ip_forward
+
+    - name: Asegurar que firewalld esté activo
+      ansible.builtin.systemd_service:
+        name: firewalld
+        enabled: true
+        state: started
+
+    - name: Abrir puertos del rol
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ fw_ports }}"
+
+    - name: Confiar en redes de pods y servicios
+      ansible.posix.firewalld:
+        source: "{{ item }}"
+        zone: trusted
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: ["{{ pod_cidr }}", "{{ service_cidr }}"]
+
+    - name: Habilitar masquerade
+      ansible.posix.firewalld:
+        masquerade: true
+        permanent: true
+        immediate: true
+        state: enabled

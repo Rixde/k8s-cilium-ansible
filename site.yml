@@ -1,0 +1,6 @@
+---
+- ansible.builtin.import_playbook: 01-prepare.yml
+- ansible.builtin.import_playbook: 02-containerd.yml
+- ansible.builtin.import_playbook: 03-kubetools.yml
+- ansible.builtin.import_playbook: 04-master.yml
+- ansible.builtin.import_playbook: 05-workers.yml

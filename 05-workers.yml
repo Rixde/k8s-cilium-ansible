@@ -1,0 +1,26 @@
+---
+- name: Unir workers al clúster
+  hosts: workers
+  vars:
+    master: "{{ groups['masters'][0] }}"
+  tasks:
+    - name: Generar comando de join en el master
+      ansible.builtin.command: kubeadm token create --print-join-command
+      delegate_to: "{{ master }}"
+      run_once: true
+      register: join_cmd
+      changed_when: false
+
+    - name: kubeadm join
+      ansible.builtin.command: "{{ join_cmd.stdout }}"
+      args:
+        creates: /etc/kubernetes/kubelet.conf
+
+    - name: Esperar a que el worker esté Ready
+      ansible.builtin.command: >
+        kubectl wait --for=condition=Ready
+        node/{{ inventory_hostname }} --timeout=300s
+      delegate_to: "{{ master }}"
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      changed_when: false

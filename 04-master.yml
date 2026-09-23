@@ -1,0 +1,80 @@
+---
+- name: Inicializar el control plane
+  hosts: masters
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  tasks:
+    - name: kubeadm init
+      ansible.builtin.command: >
+        kubeadm init
+        --control-plane-endpoint={{ control_plane_endpoint }}
+        --apiserver-advertise-address={{ ansible_host }}
+        --pod-network-cidr={{ pod_cidr }}
+        --service-cidr={{ service_cidr }}
+      args:
+        creates: /etc/kubernetes/admin.conf
+
+    - name: Carpeta .kube del usuario
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: directory
+        owner: "{{ ansible_user }}"
+        mode: "0700"
+
+    - name: Copiar kubeconfig al usuario
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "/home/{{ ansible_user }}/.kube/config"
+        remote_src: true
+        owner: "{{ ansible_user }}"
+        mode: "0600"
+
+    - name: Quitar taint de control-plane (el master también actúa como worker)
+      ansible.builtin.command: >
+        kubectl taint node {{ inventory_hostname }}
+        node-role.kubernetes.io/control-plane:NoSchedule-
+      register: taint_removal
+      changed_when: "'untainted' in taint_removal.stdout"
+      failed_when: >
+        taint_removal.rc != 0 and 'not found' not in taint_removal.stderr
+
+    - name: Comprobar si Cilium ya está instalado
+      ansible.builtin.command: kubectl -n kube-system get daemonset cilium
+      register: cilium_ds
+      changed_when: false
+      failed_when: false
+
+    - name: Obtener última versión estable de cilium-cli
+      ansible.builtin.uri:
+        url: https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt
+        return_content: true
+      register: cilium_cli_version
+      when: cilium_ds.rc != 0
+
+    - name: Descargar e instalar cilium-cli
+      ansible.builtin.unarchive:
+        src: "https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version.content | trim }}/cilium-linux-{{ cilium_cli_arch }}.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        creates: /usr/local/bin/cilium
+      when: cilium_ds.rc != 0
+
+    - name: Instalar red de pods (Cilium)
+      ansible.builtin.command: /usr/local/bin/cilium install --set ipam.mode=kubernetes
+      when: cilium_ds.rc != 0
+      changed_when: true
+
+    - name: Habilitar Hubble (observabilidad)
+      ansible.builtin.command: /usr/local/bin/cilium hubble enable --ui
+      when: cilium_ds.rc != 0
+      changed_when: true
+
+    - name: Esperar a que Cilium esté listo
+      ansible.builtin.command: /usr/local/bin/cilium status --wait
+      changed_when: false
+
+    - name: Esperar a que el nodo esté Ready
+      ansible.builtin.command: >
+        kubectl wait --for=condition=Ready
+        node/{{ inventory_hostname }} --timeout=300s
+      changed_when: false

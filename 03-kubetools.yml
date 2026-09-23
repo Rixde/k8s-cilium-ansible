@@ -1,0 +1,24 @@
+---
+- name: Instalar kubeadm, kubelet y kubectl
+  hosts: k8s
+  tasks:
+    - name: Repositorio de Kubernetes {{ k8s_minor }}
+      ansible.builtin.yum_repository:
+        name: kubernetes
+        description: Kubernetes
+        baseurl: "https://pkgs.k8s.io/core:/stable:/{{ k8s_minor }}/rpm/"
+        gpgcheck: true
+        gpgkey: "https://pkgs.k8s.io/core:/stable:/{{ k8s_minor }}/rpm/repodata/repomd.xml.key"
+        exclude: [kubelet, kubeadm, kubectl, cri-tools, kubernetes-cni]
+
+    - name: Instalar herramientas
+      ansible.builtin.dnf:
+        name: [kubelet, kubeadm, kubectl]
+        state: present
+        disable_excludes: kubernetes
+
+    - name: Habilitar kubelet
+      ansible.builtin.systemd_service:
+        name: kubelet
+        enabled: true
+        state: started

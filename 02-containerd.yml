@@ -1,0 +1,44 @@
+---
+- name: Instalar containerd
+  hosts: k8s
+  tasks:
+    - name: Repositorio Docker CE (trae containerd.io)
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+        mode: "0644"
+
+    - name: Instalar containerd.io
+      ansible.builtin.dnf:
+        name: containerd.io
+        state: present
+
+    - name: Revisar si la config ya tiene CRI
+      ansible.builtin.command: grep -q SystemdCgroup /etc/containerd/config.toml
+      register: cri_cfg
+      changed_when: false
+      failed_when: false
+
+    - name: Generar config por defecto
+      ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
+      when: cri_cfg.rc != 0
+      notify: Reiniciar containerd
+
+    - name: Usar cgroup de systemd
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+      notify: Reiniciar containerd
+
+    - name: Habilitar containerd
+      ansible.builtin.systemd_service:
+        name: containerd
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reiniciar containerd
+      ansible.builtin.systemd_service:
+        name: containerd
+        state: restarted
