@@ -51,6 +51,11 @@
       register: cilium_cli_version
       when: cilium_ds.rc != 0
 
+    - name: Instalar herramientas de descompresión (requeridas por unarchive)
+      ansible.builtin.dnf:
+        name: [tar, gzip]
+        state: present
+
     - name: Descargar e instalar cilium-cli
       ansible.builtin.unarchive:
         src: "https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version.content | trim }}/cilium-linux-{{ cilium_cli_arch }}.tar.gz"

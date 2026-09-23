@@ -1,4 +1,4 @@
-# k8s-ansible
+# k8s-cilium-ansible
 
 Automatización con **Ansible** para desplegar un clúster de **Kubernetes** con `kubeadm` sobre **Rocky Linux 9**:
 
@@ -32,7 +32,7 @@ Automatización con **Ansible** para desplegar un clúster de **Kubernetes** con
 ## Estructura del proyecto
 
 ```
-k8s-ansible/
+k8s-cilium-ansible/
 ├── ansible.cfg                 # Inventario por defecto, become=True, forks=10, sin host_key_checking
 ├── requirements.yml            # Colecciones: ansible.posix, community.general
 ├── setup-inventory.sh          # Script interactivo que genera inventory/hosts.ini
@@ -116,7 +116,7 @@ Según `Instrucciones.md`, Ansible se ejecuta **desde el propio master01** con e
 - Ejecuta `kubeadm init` con `control_plane_endpoint`, la IP del master, `pod_cidr` y `service_cidr` (idempotente: se omite si ya existe `/etc/kubernetes/admin.conf`).
 - Copia el kubeconfig a `/home/<ansible_user>/.kube/config`.
 - Quita el taint `node-role.kubernetes.io/control-plane:NoSchedule` → **el master también recibe pods**.
-- Descarga la última versión estable de **cilium-cli** a `/usr/local/bin/cilium`.
+- Instala `tar` y `gzip` (necesarios para descomprimir cilium-cli; suelen faltar en instalaciones mínimas) y descarga la última versión estable de **cilium-cli** a `/usr/local/bin/cilium`.
 - Instala **Cilium** (`cilium install --set ipam.mode=kubernetes`) y habilita **Hubble + Hubble UI** (`cilium hubble enable --ui`), solo si Cilium no estaba instalado.
 - Espera a que Cilium esté listo y a que el nodo pase a `Ready`.
 
@@ -403,6 +403,7 @@ ansible-playbook reset.yml
 | Pods de distintos nodos no se comunican | Firewall entre nodos (8472/udp, 4240/tcp) o `pod_cidr` solapado con la red física. |
 | `kubeadm join` falla | Verificar que el worker resuelve `control_plane_endpoint` (`/etc/hosts`) y alcanza `<IP-master>:6443`. |
 | Hubble UI sin datos | `cilium status` debe mostrar Hubble Relay `OK`; verificar el puerto 4244/tcp entre nodos. |
+| Error al descomprimir cilium-cli (`unable to find required 'tar'` o similar) | El playbook ya instala `tar` y `gzip` automáticamente. Si persiste, instalarlos a mano en el master: `sudo dnf install -y tar gzip`. |
 | Nodos clonados con problemas raros | `product_uuid` o MAC duplicados: `cat /sys/class/dmi/id/product_uuid`, `ip link`. |
 
 Logs útiles:
