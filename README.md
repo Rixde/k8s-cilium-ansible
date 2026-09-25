@@ -203,7 +203,7 @@ chmod 0440 /etc/sudoers.d/ansible
 
 ```bash
 sudo dnf install -y ansible-core          # si aún no está instalado
-cd ~/k8s-ansible                          # o donde hayas copiado el proyecto
+cd ~/k8s-cilium-ansible                          # o donde hayas copiado el proyecto
 ansible-galaxy collection install -r requirements.yml
 ```
 
